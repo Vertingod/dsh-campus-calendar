@@ -16,22 +16,22 @@
   },
   "plugins": [
     {
-      "name": "dsh-campus-events-calendar",
+      "name": "dsh-campus-calendar",
       "title": {
-        "zh": "Vertingod/dsh-campus-events-calendar",
-        "en": "Vertingod/dsh-campus-events-calendar"
+        "zh": "Vertingod/dsh-campus-calendar",
+        "en": "Vertingod/dsh-campus-calendar"
       },
       "repository": {
-        "url": "https://github.com/Vertingod/dsh-campus-events-calendar"
+        "url": "https://github.com/Vertingod/dsh-campus-calendar"
       },
       "versions": [
         {
           "version": "0.1.0",
-          "publishTimestamp": 1794652653,
+          "publishTimestamp": 1794653134,
           "source": {
             "type": "git",
-            "url": "https://github.com/Vertingod/dsh-campus-events-calendar",
-            "commit": "3dfd860c3f98130bee580b91e8c78bc4b3e9cff9"
+            "url": "https://github.com/Vertingod/dsh-campus-calendar",
+            "commit": "693c1d489af0e9e557599dc744dd8bba7d97e98d"
           },
           "engines": {
             "dsh": ">=0.2.1-rc.5 <0.3.0"
@@ -45,7 +45,7 @@
       "metadata": {
         "category": "tools"
       },
-      "homepage": "https://github.com/Vertingod/dsh-campus-events-calendar#readme",
+      "homepage": "https://github.com/Vertingod/dsh-campus-calendar#readme",
       "icon": "icons/icon.svg"
     }
   ]

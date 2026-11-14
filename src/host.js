@@ -465,7 +465,7 @@ export function requestRejection(ctx, req) {
   return connection.requestRejection({ headers: req.headers })
 }
 
-export const name = 'dsh-campus-events-calendar'
+export const name = 'dsh-campus-calendar'
 export default {
   inject: ['webServer', 'connection', 'tools', 'skills'],
   async apply(ctx) {

@@ -1,5 +1,5 @@
 {
-    "name":  "dsh-campus-events-calendar",
+    "name":  "dsh-campus-calendar",
     "version":  "0.1.0",
     "description":  "本地维护的大学生赛事与证书日历：按专业/年级/地区算适配度，月历、时间轴与关键节点提醒 · Local-first university competition and certificate calendar for DSH",
     "license":  "MIT",
@@ -7,12 +7,12 @@
     "author":  "Vertingod",
     "repository":  {
                        "type":  "git",
-                       "url":  "git+https://github.com/Vertingod/dsh-campus-events-calendar.git"
+                       "url":  "git+https://github.com/Vertingod/dsh-campus-calendar.git"
                    },
     "bugs":  {
-                 "url":  "https://github.com/Vertingod/dsh-campus-events-calendar/issues"
+                 "url":  "https://github.com/Vertingod/dsh-campus-calendar/issues"
              },
-    "homepage":  "https://github.com/Vertingod/dsh-campus-events-calendar#readme",
+    "homepage":  "https://github.com/Vertingod/dsh-campus-calendar#readme",
     "keywords":  [
                      "dsh",
                      "dsh-plugin",

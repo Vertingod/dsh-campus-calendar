@@ -8,13 +8,13 @@ import React from 'react'
 
 const h = React.createElement
 
-export const REPO_URL = 'https://github.com/Vertingod/dsh-campus-events-calendar'
+export const REPO_URL = 'https://github.com/Vertingod/dsh-campus-calendar'
 export const STAR_URL = REPO_URL + '/stargazers'
 export const STAR_COPY = {
-  zh: '★ 给 dsh-campus-events-calendar 点个 Star',
+  zh: '★ 给 dsh-campus-calendar 点个 Star',
   en: '★ Star on GitHub',
 }
-const MARK_KEY = 'dsh-star-reminded:dsh-campus-events-calendar'
+const MARK_KEY = 'dsh-star-reminded:dsh-campus-calendar'
 
 /** 跳转按钮：新标签页打开仓库，带 noreferrer，不接管宿主页面。 */
 export function StarButton(props = {}) {

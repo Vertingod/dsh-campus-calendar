@@ -1,12 +1,12 @@
 {
-    "url":  "https://github.com/Vertingod/dsh-campus-events-calendar",
+    "url":  "https://github.com/Vertingod/dsh-campus-calendar",
     "category":  "tools",
     "description":  {
                         "zh":  "本地维护的大学生赛事与证书日历：按专业、年级与地区计算适配度，月历优先，支持时间轴、收藏与 ICS 导出，数据不出本机。",
                         "en":  "A local-first calendar for university competitions and certificate exams: fit-scored by major, year and region, with month view, timeline and ICS export."
                     },
     "star":  {
-                 "copyZh":  "★ 给 dsh-campus-events-calendar 点个 Star",
+                 "copyZh":  "★ 给 dsh-campus-calendar 点个 Star",
                  "copyEn":  "★ Star on GitHub",
                  "remindOnce":  true
              },

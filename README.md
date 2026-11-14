@@ -1,18 +1,18 @@
 # DSH 大学生赛事与证书日历
 
-[![Star](https://img.shields.io/github/stars/Vertingod/dsh-campus-events-calendar?style=social)](https://github.com/Vertingod/dsh-campus-events-calendar/stargazers)
-[![Market](https://img.shields.io/badge/dsh--market-awesome--dsh--plugin-1d6a5a)](https://awesome-dsh-plugin.com/p/Vertingod/dsh-campus-events-calendar/)
+[![Star](https://img.shields.io/github/stars/Vertingod/dsh-campus-calendar?style=social)](https://github.com/Vertingod/dsh-campus-calendar/stargazers)
+[![Market](https://img.shields.io/badge/dsh--market-awesome--dsh--plugin-1d6a5a)](https://awesome-dsh-plugin.com/p/Vertingod/dsh-campus-calendar/)
 
 ![赛事日历总览](docs/screenshots/01-overview.png)
 
 提供本地维护的赛事、证书考试与关键日期日历。插件通过 DSH 侧栏「赛事日历」入口打开，桌面默认月历优先，支持列表、收藏和数据维护。
 
-> 用着顺手的话，顺手点个 Star 支持一下：https://github.com/Vertingod/dsh-campus-events-calendar
+> 用着顺手的话，顺手点个 Star 支持一下：https://github.com/Vertingod/dsh-campus-calendar
 > 插件内的「★ 点个 Star」按钮和这条 README 指向同一个仓库地址。
 
 ## 安装与运行
 
-需要 Node.js 20+ 与 DeepSeek Harness 0.2.x。用 DSH 插件管理器从本地包目录安装 `dsh-campus-events-calendar` 后，在插件页启用；桌面端若插件管理器要求重启，按其提示重启 DSH。源码开发命令：
+需要 Node.js 20+ 与 DeepSeek Harness 0.2.x。用 DSH 插件管理器从本地包目录安装 `dsh-campus-calendar` 后，在插件页启用；桌面端若插件管理器要求重启，按其提示重启 DSH。源码开发命令：
 
 ```powershell
 npm install

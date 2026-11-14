@@ -1,0 +1,9 @@
+# awesome-dsh-plugin entry for Vertingod/dsh-campus-calendar
+# 提交方式：把本文件放到目录仓库 data/plugins/Vertingod__dsh-campus-calendar.yml，一个 PR 只加这一个文件。
+url: https://github.com/Vertingod/dsh-campus-calendar
+name: Vertingod/dsh-campus-calendar
+category: tools
+description:
+  en: "A local-first calendar for university competitions and certificate exams: fit-scored by major, year and region, with month view, timeline and ICS export."
+  zh: 本地维护的大学生赛事与证书日历：按专业、年级与地区计算适配度，月历优先，支持时间轴、收藏与 ICS 导出，数据不出本机。
+screenshots: ['docs/screenshots/00-premium-month.png', 'docs/screenshots/01-overview.png', 'docs/screenshots/02-manage.png', 'docs/screenshots/03-editor.png']

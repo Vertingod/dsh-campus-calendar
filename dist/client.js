@@ -1,4 +1,4 @@
-window.__ModuleLoader__.load({id:"dsh-campus-events-calendar",factory:(require)=>{const module={exports:{}};const exports=module.exports;
+window.__ModuleLoader__.load({id:"dsh-campus-calendar",factory:(require)=>{const module={exports:{}};const exports=module.exports;
 var __create = Object.create;
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
@@ -38,13 +38,13 @@ module.exports = __toCommonJS(client_exports);
 // src/star-entry.js
 var import_react = __toESM(require("react"), 1);
 var h = import_react.default.createElement;
-var REPO_URL = "https://github.com/Vertingod/dsh-campus-events-calendar";
+var REPO_URL = "https://github.com/Vertingod/dsh-campus-calendar";
 var STAR_URL = REPO_URL + "/stargazers";
 var STAR_COPY = {
-  zh: "★ 给 dsh-campus-events-calendar 点个 Star",
+  zh: "★ 给 dsh-campus-calendar 点个 Star",
   en: "★ Star on GitHub"
 };
-var MARK_KEY = "dsh-star-reminded:dsh-campus-events-calendar";
+var MARK_KEY = "dsh-star-reminded:dsh-campus-calendar";
 function StarButton(props = {}) {
   return h("button", {
     type: "button",

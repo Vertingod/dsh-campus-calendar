@@ -17,6 +17,6 @@ const result = await build({
 const js = result.outputFiles?.find(file => file.path.endsWith('.js'))?.text
 const css = await readFile('src/styles.css', 'utf8')
 if (!js || js.trim() === 'undefined') throw new Error('Client JavaScript bundle output missing')
-const wrapped = `window.__ModuleLoader__.load({id:"dsh-campus-events-calendar",factory:(require)=>{const module={exports:{}};const exports=module.exports;\n${js}\nreturn module.exports}})`
+const wrapped = `window.__ModuleLoader__.load({id:"dsh-campus-calendar",factory:(require)=>{const module={exports:{}};const exports=module.exports;\n${js}\nreturn module.exports}})`
 await writeFile('dist/client.js', wrapped, 'utf8')
 await writeFile('dist/client.css', css, 'utf8')
