@@ -1,0 +1,13 @@
+{
+  "name": "my-dsh-plugins",
+  "items": [
+    {
+      "url": "https://github.com/Vertingod/dsh-campus-events-calendar",
+      "name": "dsh-campus-events-calendar",
+      "slug": "Vertingod/dsh-campus-events-calendar",
+      "category": "tools",
+      "description": "本地维护的大学生赛事与证书日历：按专业、年级与地区计算适配度，月历优先，支持时间轴、收藏与 ICS 导出，数据不出本机。",
+      "descriptionEn": "A local-first calendar for university competitions and certificate exams: fit-scored by major, year and region, with month view, timeline and ICS export."
+    }
+  ]
+}

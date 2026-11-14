@@ -1,39 +1,50 @@
-﻿#!/usr/bin/env node
+#!/usr/bin/env node
 /**
- * 把已发布到 GitHub 的插件仓库加进 dsh 客户端自己的插件发现索引（不用等目录 PR 合并）。
- * 用法：node tools/release/add-index-source.mjs --repo https://github.com/<owner>/<repo>[#subpath] [--json]
- * 原理：dsh-m 面板「设置 → 索引源(Index sources)」可加自定义 catalog，每条索引项形如
- *   { url, name?, category?, description? }；本脚本把条目合并进已有的自定义索引文件（幂等，按 url 去重）。
- * 默认写入本机 dsh 桌面配置；--json 时只打印合并结果，便于人工粘到面板里。
+ * 生成一个"自定义插件索引"，让 dsh 官方面板「插件 → 发现 → 索引源」能搜到自己还没进公共目录的插件。
+ * 用法：
+ *   node add-index-source.mjs --repos "https://github.com/A/r1;https://github.com/B/r2"
+ *   node add-index-source.mjs                 # 读 release.config.json 的 url（单个插件仓库）
+ *   node add-index-source.mjs --out <路径>    # 指定输出文件（默认 <仓库>/market/index.json）
+ *
+ * 重要事实（别踩坑）：
+ *   「索引源」接受的是**指向 index.json 的 URL**，不是本地 json 文件路径，也不接受裸 GitHub 仓库地址。
+ *   所以这里产出的是一个符合平台 catalog 格式的 json，你需要把它托管到任意 https 地址上
+ *  （自己仓库的 raw.githubusercontent.com、gist、oss、Vercel 都可以），再把那个 URL 填进面板。
  */
 import { readFile, writeFile, mkdir } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import path from 'node:path'
-import os from 'node:os'
 
 const arg = name => { const i = process.argv.indexOf(`--${name}`); return i > -1 ? process.argv[i + 1] : undefined }
-const repo = arg('repo') || (await readJson(path.join(process.cwd(), 'release.config.json')))?.url
-if (!repo) { console.error('[index] 用 --repo https://github.com/<owner>/<repo> 指定'); process.exit(1) }
-if (repo.includes('<')) { console.error('[index] 仓库地址还是占位符，先把 <OWNER> 换成真实账号'); process.exit(1) }
+const cfgPath = path.join(process.cwd(), 'release.config.json')
+const cfg = existsSync(cfgPath) ? JSON.parse((await readFile(cfgPath, 'utf8')).replace(/^\uFEFF/, '')) : {}
+
+const repos = (arg('repos') || cfg.url || '').split(';').map(s => s.trim()).filter(Boolean)
+if (!repos.length) {
+  console.error('[index] 没有仓库：用 --repos "url1;url2"，或在 release.config.json 里配 url')
+  process.exit(1)
+}
+const bad = repos.find(r => r.includes('<'))
+if (bad) { console.error(`[index] 仓库地址还是占位符：${bad}`); process.exit(1) }
 
 const VALID = ['agi','ui','usage','theme','model','identity','session','memory','tools','wsl','browser','vision','voice','docs','skill','workflow','git','notify','dev','security','remote','market','fun']
-const local = await readJson(path.join(process.cwd(), 'release.config.json')).catch(() => ({}))
-const name = repo.replace(/^https:\/\/github\.com\//, '').replace(/\.git$/, '')
-const entry = { url: repo, name, category: local.category, description: local.description?.zh }
-if (!VALID.includes(entry.category)) delete entry.category
+const items = repos.map(url => {
+  const slug = url.replace(/^https:\/\/github\.com\//, '').replace(/\.git$/, '')
+  const name = slug.split('/').pop()
+  const item = { url, name, slug }
+  if (VALID.includes(cfg.category)) item.category = cfg.category
+  const desc = cfg.description?.zh
+  if (desc && !desc.startsWith('<')) { item.description = desc; item.descriptionEn = cfg.description?.en || undefined }
+  if (item.descriptionEn === undefined) delete item.descriptionEn
+  return item
+})
 
-const outFile = path.join(os.homedir(), '.dsh', 'profiles', 'desktop', 'plugin-index-sources.json')
-const existing = existsSync(outFile) ? (await readJson(outFile)) : { sources: [] }
-const merged = existing.sources.filter(s => s.url !== repo).concat(entry)
-const payload = { sources: merged }
+const out = arg('out') || path.join(process.cwd(), 'market', 'index.json')
+const payload = { name: 'my-dsh-plugins', items }
+await mkdir(path.dirname(out), { recursive: true })
+await writeFile(out, JSON.stringify(payload, null, 2) + '\n', 'utf8')
 
-if (process.argv.includes('--json')) { console.log(JSON.stringify(payload, null, 2)); process.exit(0) }
-await mkdir(path.dirname(outFile), { recursive: true })
-await writeFile(outFile, JSON.stringify(payload, null, 2) + '\n', 'utf8')
-console.log(`[index] 已写入 ${outFile}（${merged.length} 条）`)
-console.log('[index] 打开 dsh 插件面板 → 设置 → 索引源 → 添加文件路径即可在 Discover 里直接搜到自己的插件')
-
-async function readJson(file) {
-  const raw = await readFile(file, 'utf8')
-  return JSON.parse(raw.replace(/^\uFEFF/, ''))
-}
+console.log(`[index] 已生成 ${out}（${items.length} 个插件）`)
+console.log('[index] 下一步：把这个文件推到 GitHub，然后在 dsh 面板「插件 → 发现 → 索引源」填它的 https 直链，例如')
+console.log(`        https://raw.githubusercontent.com/${items[0].slug}/main/market/index.json`)
+console.log('[index] 注意：面板要的是 URL，不是本地路径；裸仓库地址也不行，必须指向 index.json。')
