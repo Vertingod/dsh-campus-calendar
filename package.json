@@ -1,0 +1,76 @@
+{
+    "name":  "dsh-campus-events-calendar",
+    "version":  "0.1.0",
+    "description":  "本地维护的大学生赛事与证书日历：按专业/年级/地区算适配度，月历、时间轴与关键节点提醒 · Local-first university competition and certificate calendar for DSH",
+    "license":  "MIT",
+    "icon":  "./icon.svg",
+    "author":  "Vertingod",
+    "repository":  {
+                       "type":  "git",
+                       "url":  "git+https://github.com/Vertingod/dsh-campus-events-calendar.git"
+                   },
+    "bugs":  {
+                 "url":  "https://github.com/Vertingod/dsh-campus-events-calendar/issues"
+             },
+    "homepage":  "https://github.com/Vertingod/dsh-campus-events-calendar#readme",
+    "keywords":  [
+                     "dsh",
+                     "dsh-plugin",
+                     "deepseek-harness",
+                     "calendar",
+                     "competition",
+                     "certificate"
+                 ],
+    "type":  "module",
+    "main":  "src/host.js",
+    "exports":  {
+                    ".":  "./src/host.js",
+                    "./client":  "./dist/client.js",
+                    "./cordis.patch.yml":  "./cordis.patch.yml",
+                    "./package.json":  "./package.json",
+                    "./icon":  "./icon.svg"
+                },
+    "dsh":  {
+                "manifestVersion":  1,
+                "bundle":  {
+                               "patch":  "./cordis.patch.yml"
+                           },
+                "client":  {
+                               "platform":  "web",
+                               "inject":  [
+                                              "@deepseek-ai/dsh-client-runtime"
+                                          ]
+                           }
+            },
+    "engines":  {
+                    "node":  "\u003e=20",
+                    "dsh":  "\u003e=0.2.1-rc.5 \u003c0.3.0"
+                },
+    "scripts":  {
+                    "build":  "node scripts/build.mjs",
+                    "test":  "node --test test/*.test.js",
+                    "preview":  "node scripts/preview.mjs",
+                    "release:check":  "node tools/release/preflight.mjs",
+                    "release:entry":  "node tools/release/market-entry.mjs",
+                    "release:star":  "node tools/release/star-entry.mjs",
+                    "release:pack":  "node tools/release/pack.mjs",
+                    "release:index":  "node tools/release/add-index-source.mjs"
+                },
+    "devDependencies":  {
+                            "esbuild":  "^0.25.10",
+                            "jsdom":  "^29.1.1",
+                            "react":  "^19.3.1",
+                            "react-dom":  "^19.3.1"
+                        },
+    "files":  [
+                  "src",
+                  "dist",
+                  "skills",
+                  "icon.svg",
+                  "locale",
+                  "screenshots.json",
+                  "cordis.patch.yml",
+                  "LICENSE",
+                  "README.md"
+              ]
+}

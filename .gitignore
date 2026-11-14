@@ -1,0 +1,10 @@
+node_modules/
+.preview/
+.superpowers/
+browser-screenshots/
+*.tgz
+preview-server*.log
+preview-server.err.log
+*.local.json
+Thumbs.db
+.DS_Store
