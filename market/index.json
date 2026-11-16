@@ -36,6 +36,18 @@
           "engines": {
             "dsh": ">=0.2.1-rc.5 <0.3.0"
           }
+        },
+        {
+          "version": "0.3.0",
+          "publishTimestamp": 1794820562,
+          "source": {
+            "type": "git",
+            "url": "https://github.com/Vertingod/dsh-campus-calendar",
+            "commit": "6d613876d8c1ba3e5bd7d1a8a88ca5a9d867c998"
+          },
+          "engines": {
+            "dsh": ">=0.2.1-rc.5 <0.3.0"
+          }
         }
       ],
       "description": {

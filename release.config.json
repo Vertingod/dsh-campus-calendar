@@ -11,5 +11,5 @@
                  "remindOnce":  true
              },
     "npmPublish":  true,
-    "releaseTag":  "v0.1.0"
+    "releaseTag": "v0.3.0"
 }
