@@ -26,24 +26,12 @@
       },
       "versions": [
         {
-          "version": "0.1.0",
-          "publishTimestamp": 1794660596,
-          "source": {
-            "type": "git",
-            "url": "https://github.com/Vertingod/dsh-campus-calendar",
-            "commit": "a6ecc5dc8b1c8bf425938668f2fcd01e549164e4"
-          },
-          "engines": {
-            "dsh": ">=0.2.1-rc.5 <0.3.0"
-          }
-        },
-        {
           "version": "0.3.0",
-          "publishTimestamp": 1794820562,
+          "publishTimestamp": 1794820576,
           "source": {
             "type": "git",
             "url": "https://github.com/Vertingod/dsh-campus-calendar",
-            "commit": "6d613876d8c1ba3e5bd7d1a8a88ca5a9d867c998"
+            "commit": "f8eb0c0341cc77161409949f1382f94e96e4675b"
           },
           "engines": {
             "dsh": ">=0.2.1-rc.5 <0.3.0"
