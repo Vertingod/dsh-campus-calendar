@@ -12,7 +12,9 @@
 
 ## 安装与运行
 
-需要 Node.js 20+ 与 DeepSeek Harness 0.2.x。用 DSH 插件管理器从本地包目录安装 `dsh-campus-calendar` 后，在插件页启用；桌面端若插件管理器要求重启，按其提示重启 DSH。源码开发命令：
+需要 Node.js 20+ 与 DeepSeek Harness 0.2.x。从 dsh 插件市场安装：搜索 `dsh-campus-calendar`（或作者 `Vertingod`），点卡片上的「安装」即可，包内已带预构建的 `dist/client.js`，安装时不需要执行构建脚本。也可以在 dsh 面板「插件 → 发现 → 索引源」里填 `https://raw.githubusercontent.com/Vertingod/dsh-campus-calendar/main/market/index.json`，直接从本仓库取索引。安装完成后在插件页确认已启用；若 DSH 提示需要重启才能加载新插件，按其提示重启。
+
+如果要改代码，用下面的源码命令：
 
 ```powershell
 npm install
