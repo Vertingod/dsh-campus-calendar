@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createStore } from '../src/host/store.js'
@@ -208,23 +208,26 @@ test('skill provider lists one candidate and returns rewritten content for it', 
   assert.equal(await provider.get({ name: 'unknown' }), undefined)
 })
 
-test('draft builder encourages supported annual predictions without claiming exact dates', () => {
+test('draft builder tells the model to look the dates up online before writing them', () => {
   const plan = buildDraft({ today: '2026-11-10' })
   assert.match(plan, /专业/, '默认草稿应先问学业信息')
   assert.match(plan, /campus_calendar_set_profile/, '生成日历前必须先写档案')
   assert.match(plan, /campus_calendar_add_item/)
   assert.match(plan, /今天是 2026-11-10/)
+  assert.match(plan, /联网查/, '生成日历要先查官方公告，不能凭印象编日期')
   const add = buildDraft({ kind: 'add', today: '2026-11-10' })
   assert.match(add, /^\/campus-calendar-add /, '草稿应以 /skill 开头，模型收到即显式调用')
   assert.match(add, /今天是 2026-11-10/)
-  assert.match(add, /accuracy=month/)
-  assert.match(add, /predicted/, '粗粒度日期要提示配 predicted + note 依据')
+  assert.match(add, /联网查/, '单条录入也要先查官方公告')
+  assert.match(add, /accuracy=exact/, '查到具体日子应该写 exact')
+  assert.match(add, /accuracy=month/, '官方只说到月份时才降级用 month')
+  assert.match(add, /不要编日期/)
 
   const semester = buildDraft({ kind: 'semester', text: '2027 春季学期', today: '2026-11-10', state: { profile: { major: '计算机科学', year: '大三', province: '广东', interests: ['程序设计'] } } })
   assert.match(semester, /时间范围：2027 春季学期/)
   assert.match(semester, /程序设计/)
-  assert.match(semester, /不能只因未公布就留空/)
-  assert.match(semester, /不能把“每年举办”直接推成具体月份或具体日/)
+  assert.match(semester, /联网查/)
+  assert.match(semester, /predicted/, '按往届规律推算的必须标 predicted 并注明是推算')
 
   assert.equal(buildDraft({ kind: 'unknown-kind' }).startsWith('/campus-calendar-add '), true, '未知类型回落到「生成我的日历」草稿')
 })
@@ -325,6 +328,65 @@ test('host routes expose state and reject invalid JSON and unsafe official recor
     const oversized = response()
     await handler({ method: 'POST', url: '/campus-calendar/state', headers: {}, async *[Symbol.asyncIterator]() { yield Buffer.alloc(2 * 1024 * 1024 + 1) } }, oversized)
     assert.equal(oversized.statusCode, 413)
+  } finally { await rm(dir, { recursive: true, force: true }) }
+})
+
+test('import backs up first, and a broken payload leaves the existing data untouched', async () => {
+  const dir = await tempDir()
+  try {
+    const store = createStore({ dataDir: dir })
+    const handler = createHandler({ store })
+    const response = () => ({ statusCode: 0, headers: {}, setHeader(k, v) { this.headers[k] = v }, end(body) { this.body = body } })
+    const post = (url, text) => ({ method: 'POST', url, headers: {}, async *[Symbol.asyncIterator]() { yield Buffer.from(text) } })
+
+    // 先写入一条能认出来的数据，导入失败后它必须原封不动
+    const seeded = await store.readState()
+    seeded.items = seeded.items.map((item, index) => index === 0 ? { ...item, title: '导入前的旧数据' } : item)
+    await store.writeState(seeded)
+
+    // 坏 JSON：请求体根本解析不了
+    const broken = response()
+    await handler(post('/campus-calendar/import', '{not json'), broken)
+    assert.equal(broken.statusCode, 400)
+    assert.equal((await store.readState()).items[0].title, '导入前的旧数据', '坏 JSON 不得改动原数据')
+    assert.equal((await readdir(dir)).filter(name => name.startsWith('state.backup-')).length, 0, '解析都没过就不该留下备份')
+
+    // 结构合法但内容被拒：校验失败同样不能碰原数据
+    const rejected = response()
+    await handler(post('/campus-calendar/import', JSON.stringify({ version: 1, items: [{ id: 'x' }] })), rejected)
+    assert.equal(rejected.statusCode, 400)
+    assert.equal((await store.readState()).items[0].title, '导入前的旧数据', '校验失败不得改动原数据')
+
+    // 正常导入：返回体会带上备份文件名，磁盘上确实存在，内容是导入前的快照
+    const good = await store.exportState()
+    good.items = good.items.map((item, index) => index === 0 ? { ...item, title: '导入后的新数据' } : item)
+    const res = response()
+    await handler(post('/campus-calendar/import', JSON.stringify(good)), res)
+    assert.equal(res.statusCode, 200)
+    const body = JSON.parse(res.body)
+    assert.match(body.backup, /state\.backup-import-.*\.json$/, '导入前必须留一份备份，并把文件名回给界面')
+    const saved = JSON.parse(await readFile(body.backup, 'utf8'))
+    assert.equal(saved.items[0].title, '导入前的旧数据', '备份里存的必须是导入前的内容')
+    assert.equal((await store.readState()).items[0].title, '导入后的新数据')
+  } finally { await rm(dir, { recursive: true, force: true }) }
+})
+
+test('backups are capped so the data directory does not grow without bound', async () => {
+  const dir = await tempDir()
+  try {
+    const store = createStore({ dataDir: dir })
+    await store.readState()
+    for (let index = 0; index < 14; index++) {
+      // 两套历史命名风格都要能被认出来并一起排序
+      const day = String(index + 1).padStart(2, '0')
+      await writeFile(join(dir, `state.backup-merge-2026-10-${day}T05-07-34-510Z.json`), '{}', 'utf8')
+      await writeFile(join(dir, `state.json.before-refresh-2026-09-${day}T10-18-56.344Z.bak`), '{}', 'utf8')
+    }
+    await store.backup('cap')
+    const left = (await readdir(dir)).filter(name => name !== 'state.json' && name !== 'state.json.tmp')
+    assert.equal(left.length, 10, `只留最近 10 份，实际留下 ${left.length} 份：${left.join(', ')}`)
+    assert.ok(left.some(name => name.includes('state.backup-cap-')), '最新的那份不能被自己清理掉')
+    assert.ok(left.every(name => !name.includes('2026-09-01')), '最老的备份应当先被删')
   } finally { await rm(dir, { recursive: true, force: true }) }
 })
 

@@ -44,7 +44,7 @@ test('calendar adds a typed competition event in the selected-day sidebar', asyn
   assert.equal(document.querySelector('.cc-coverage-hint'), null, '覆盖提示收在次级功能中，不挤占轻量月历')
   assert.equal(document.querySelector('.cc-conversation-hint'), null, 'Agent 引导应放在次级入口')
   const addEvent = document.querySelector('.cc-day.today .cc-day-add')
-  const date = addEvent.getAttribute('aria-label').match(/\d{4}-\d{2}-\d{2}/)[0]
+  const date = addEvent.getAttribute('data-date')
   await view.update(() => click(addEvent))
   await waitFor(() => document.querySelector('.cc-event-form'))
   const form = document.querySelector('.cc-event-form')
@@ -60,7 +60,7 @@ test('calendar adds a typed competition event in the selected-day sidebar', asyn
   assert.equal(payload.nodes[0].type, 'competition')
   assert.equal(payload.nodes[0].start, date)
   assert.equal(payload.nodes[0].confidence, 'pending_confirmation', '用户填写日期但未提供官方来源时不能伪标官方确认')
-  assert.ok([...document.querySelectorAll('.cc-chip')].some(chip => chip.textContent.includes('蓝桥杯省赛')))
+  assert.ok([...document.querySelectorAll('.cc-chip')].some(chip => chip.title.includes('蓝桥杯省赛')), '月历格显示简称，全名留在 title 里')
   assert.equal(document.querySelector('.cc-event-form'), null)
   await view.unmount()
 })
@@ -141,7 +141,8 @@ test('undated items are listed as 日期未知 and never placed on a calendar da
   await waitFor(() => document.querySelector('.cc-calendar'))
   await waitFor(() => document.querySelectorAll('.cc-agenda-row').length > 0, '议程没有渲染')
   assert.equal(document.querySelectorAll('.cc-chip').length, 1, '只有有日期的事项可以进入月历格')
-  assert.match(document.querySelector('.cc-chip').textContent, /示例 · 有日期事项/)
+  // 月历格只放得下简称：文字是「示例」而不是全名，全名与全角标签留在 title / aria-label 里
+  assert.match(document.querySelector('.cc-chip').title, /示例 · 有日期事项/)
 
   await view.update(() => click(findButton(document.querySelector('.cc-segment'), '列表')))
   const undated = [...document.querySelectorAll('.cc-list-row')].find(row => row.textContent.includes('演示 · 创新挑战赛'))
@@ -191,14 +192,16 @@ test('coarse month precision renders as 月（预计）, fills a month span, and
 
   await view.update(() => click(findButton(document.querySelector('.cc-segment'), '月历')))
   await waitFor(() => document.querySelector('.cc-calendar'))
-  const monthSpan = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
-  const monthChips = [...document.querySelectorAll('.cc-chip')].filter(chip => chip.textContent.includes('蓝桥杯省赛'))
-  assert.equal(monthChips.length, 2, '月份精度只在当月首尾各立一个标记，不再逐天铺满')
-  assert.deepEqual(monthChips.map(chip => chip.closest('.cc-day').querySelector('.cc-day-number').textContent), ['1', String(monthSpan)], '首日与末日各一个标记')
+  // 产品行为刻意的改动：只知道月份时不再编出「1 号 / 月末」两个格子，
+  // 而是进「还没落到某一天」条 —— 月历格里每个点都必须对应真实的一天。
+  assert.equal([...document.querySelectorAll('.cc-chip')].filter(chip => chip.title.includes('蓝桥杯省赛')).length, 0, '月份精度不进月历格')
+  const floating = document.querySelector('.cc-floating')
+  assert.ok(floating, '月份精度的事项要出现在模糊档期条里')
+  assert.match(floating.textContent, /蓝桥杯/, '模糊档期条里用简称标出是哪件事')
+  assert.match(floating.textContent, /还没落到某一天|只知道大致档期/)
+  assert.match(floating.textContent, new RegExp(`${now.getMonth() + 1}月`), '只说到月份就只显示月份，不给日')
   assert.equal(document.querySelectorAll('.cc-span').length, 0, '月历格不再画逐日细条')
   const chips = [...document.querySelectorAll('.cc-chip')]
-  assert.match(chips[0].textContent, /蓝桥杯省赛/)
-  assert.equal(document.querySelectorAll('.cc-chip[data-edge="end"]').length, 1, '末日标记要标出这是窗口的结束')
   assert.ok(!chips.some(chip => chip.textContent.includes('学院创新赛')), '年份精度不铺进月历格，也不该伪造某一天')
   await view.unmount()
 })
@@ -254,7 +257,7 @@ test('favorites, in-plugin reminders and ICS export stay wired to the host API',
   await view.update(() => click(findButtonContaining(document.querySelector('[role="dialog"]'), '站内提醒')))
   await waitFor(() => stub.state.reminders.length === 1)
   assert.deepEqual(stub.state.reminders, ['known-b'])
-  await waitFor(() => document.querySelector('[role="status"]')?.textContent.includes('不会发送系统通知'))
+  await waitFor(() => document.querySelector('[role="status"]')?.textContent.includes('7 天内到期的会排在日历上方'))
 
   await view.update(() => click(document.querySelector('[aria-label="关闭详情"]')))
   await waitFor(() => !document.querySelector('[role="dialog"]'))
@@ -309,7 +312,8 @@ test('editor blocks unverifiable official dates and posts a valid draft to the i
   await view.update(() => selectOption(confidence(), 'official_confirmed'))
   await view.update(() => submitForm(editor().querySelector('form')))
   await waitFor(() => editor().querySelector('.cc-inline-error'), '缺少来源的官方日期未被前端拦下')
-  assert.match(editor().querySelector('.cc-inline-error').textContent, /官方确认日期必须填写来源 URL/)
+  // 文案来自领域层 validateItem：表单不再自己抄一套规则，两边措辞必须一致
+  assert.match(editor().querySelector('.cc-inline-error').textContent, /官方确认日期必须有日期、来源 URL 和核验日期/)
   assert.equal(calls.some(call => call.method === 'POST'), false, '被拦下的事项不得发往宿主')
 
   await view.update(() => selectOption(confidence(), 'pending_confirmation'))
@@ -326,6 +330,8 @@ test('editor blocks unverifiable official dates and posts a valid draft to the i
 test('read failure shows a retry path and recovers once the host answers', async () => {
   let attempt = 0
   const view = await mountClient(async url => {
+    // 重复记录是主流程之外的补充查询，只统计「读日历」本身请求了几次
+    if (String(url).includes('duplicates')) return jsonResponse({ duplicates: [], auto: true })
     if (String(url).includes('suggestions')) return jsonResponse({ items: [] })
     attempt += 1
     if (attempt === 1) return { ok: false, status: 500, headers: { get: () => 'application/json' }, json: async () => ({ error: '本地文件损坏' }), blob: async () => new Blob([]) }
@@ -338,6 +344,99 @@ test('read failure shows a retry path and recovers once the host answers', async
   await view.update(() => click(findButton(document, '重试')))
   await waitFor(() => document.querySelector('.cc-calendar'))
   assert.equal(attempt, 2)
+
+  await view.unmount()
+})
+
+test('详情里的四档重要程度会写回数据，没设过时把自动推断的那一档标出来', async () => {
+  const calls = []
+  let state = structuredClone(fixture)
+  const view = await mountClient(async (url, options = {}) => {
+    calls.push({ url, method: options.method || 'GET', body: options.body })
+    if (String(url).includes('duplicates')) return jsonResponse({ duplicates: [], auto: true })
+    if (options.method === 'POST' && url.endsWith('/items/level')) {
+      const { id, nodeId, level } = JSON.parse(options.body)
+      state = {
+        ...state,
+        items: state.items.map(item => item.id !== id ? item : {
+          ...item,
+          nodes: item.nodes.map(node => {
+            if (nodeId && node.id !== nodeId) return node
+            if (level === null) { const { level: _drop, ...rest } = node; return rest }
+            return { ...node, level }
+          }),
+        }),
+      }
+      return jsonResponse(state)
+    }
+    return jsonResponse(state)
+  })
+  const { document } = view
+  await waitFor(() => document.querySelector('.cc-calendar'))
+
+  await view.update(() => click(document.querySelector('.cc-calendar-tools button')))
+  await view.update(() => click(findButton(document.querySelector('.cc-segment'), '列表')))
+  await waitFor(() => document.querySelectorAll('.cc-list-row').length === 2)
+  await view.update(() => click([...document.querySelectorAll('.cc-list-row')].find(row => row.textContent.includes('示例 · 有日期事项'))))
+  await waitFor(() => document.querySelector('.cc-level-picker'))
+
+  const picker = () => document.querySelector('.cc-level-picker')
+  const options = () => [...picker().querySelectorAll('.cc-level-option')]
+  // 报名截止默认就是最高一档：没手动设过时也要显示出来，否则四个按钮全是未选中，看不出算几级
+  const implied = options().find(option => option.getAttribute('aria-pressed') === 'true')
+  assert.equal(implied?.dataset.level, '4', '报名截止应自动推断为「截止」档')
+  assert.match(implied.className, /implied/, '自动推断出来的档位要标成 implied，与用户手选区分开')
+  assert.ok(picker().querySelector('.cc-level-auto'), '没手动设过时不给「自动」按钮，而是显示「自动」文案')
+
+  await view.update(() => click(options().find(option => option.dataset.level === '2')))
+  await waitFor(() => calls.some(call => call.method === 'POST' && call.url.endsWith('/items/level')), '点档位应写回宿主')
+  const levelPost = calls.find(call => call.method === 'POST' && call.url.endsWith('/items/level'))
+  assert.deepEqual(JSON.parse(levelPost.body), { id: 'known-b', nodeId: 'node-b', level: 2 }, '只改被点的那一档')
+  await waitFor(() => options().find(option => option.dataset.level === '2').getAttribute('aria-pressed') === 'true', '保存后选中态应跟着变')
+  assert.ok(picker().querySelector('.cc-level-reset'), '手动设过之后要能一键回自动')
+
+  await view.update(() => click(picker().querySelector('.cc-level-reset')))
+  await waitFor(() => state.items.find(item => item.id === 'known-b').nodes[0].level === undefined, '「自动」应把 level 从数据里删掉')
+  await waitFor(() => options().find(option => option.dataset.level === '4').className.includes('implied'), '回到自动后重新按类型推断')
+
+  await view.unmount()
+})
+
+test('旧宿主没有 items/level 接口时，改等级退回 PUT items/:id，不能让按钮点了没反应', async () => {
+  const calls = []
+  let state = structuredClone(fixture)
+  let levelRouteHits = 0
+  const view = await mountClient(async (url, options = {}) => {
+    calls.push({ url, method: options.method || 'GET', body: options.body })
+    if (String(url).includes('duplicates')) return jsonResponse({ duplicates: [], auto: true })
+    // 模拟今天下午还在跑的旧 DSH 进程：接口是后来才加的，这个路由根本不存在
+    if (url.endsWith('/items/level')) {
+      levelRouteHits += 1
+      return new Response(JSON.stringify({ error: '未找到此接口' }), { status: 404, headers: { 'content-type': 'application/json' } })
+    }
+    if (options.method === 'PUT' && url.includes('/items/')) {
+      const { item } = JSON.parse(options.body)
+      state = { ...state, items: state.items.map(entry => entry.id === item.id ? { ...item, id: entry.id } : entry) }
+      return jsonResponse(state)
+    }
+    return jsonResponse(state)
+  })
+  const { document } = view
+  await waitFor(() => document.querySelector('.cc-calendar'))
+
+  await view.update(() => click(document.querySelector('.cc-calendar-tools button')))
+  await view.update(() => click(findButton(document.querySelector('.cc-segment'), '列表')))
+  await waitFor(() => document.querySelectorAll('.cc-list-row').length === 2)
+  await view.update(() => click([...document.querySelectorAll('.cc-list-row')].find(row => row.textContent.includes('示例 · 有日期事项'))))
+  await waitFor(() => document.querySelector('.cc-level-picker'))
+
+  await view.update(() => click([...document.querySelectorAll('.cc-level-picker .cc-level-option')].find(option => option.dataset.level === '3')))
+  await waitFor(() => calls.some(call => call.method === 'PUT' && call.url.includes('/items/known-b')), '接口不在时应退回 PUT items/:id')
+  assert.equal(levelRouteHits, 1, '先试新接口，失败才退回')
+  const put = calls.find(call => call.method === 'PUT' && call.url.includes('/items/known-b'))
+  assert.equal(JSON.parse(put.body).item.nodes[0].level, 3, '退回路径也要把等级写进节点')
+  await waitFor(() => [...document.querySelectorAll('.cc-level-picker .cc-level-option')].find(option => option.dataset.level === '3').getAttribute('aria-pressed') === 'true', '退回路径同样要更新选中态')
+  assert.equal(document.querySelector('.cc-error'), null, '退回成功不算报错')
 
   await view.unmount()
 })

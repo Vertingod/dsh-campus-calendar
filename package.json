@@ -1,6 +1,6 @@
 {
     "name":  "dsh-campus-calendar",
-    "version":  "0.1.0",
+    "version":  "0.3.0",
     "description":  "本地维护的大学生赛事与证书日历：按专业/年级/地区算适配度，月历、时间轴与关键节点提醒 · Local-first university competition and certificate calendar for DSH",
     "license":  "MIT",
     "icon":  "./icon.svg",
@@ -71,6 +71,7 @@
                   "screenshots.json",
                   "cordis.patch.yml",
                   "LICENSE",
-                  "README.md"
+                  "README.md",
+      "CHANGELOG.md"
               ]
 }

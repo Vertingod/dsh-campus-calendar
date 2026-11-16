@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { toIcs } from './domain/ics.js'
 import { TAG_COLORS, nodePrecision } from './domain/model.js'
+import { buildMergedDataset, groupItems, mergeSummary } from './domain/merge.js'
 import { createStore } from './host/store.js'
 import { buildSuggestions } from './domain/suggest.js'
 
@@ -39,11 +40,11 @@ function json(res, status, value) {
 const nodeProperties = {
   id: { type: 'string' },
   type: { type: 'string', enum: ['registration', 'registration_deadline', 'competition', 'exam', 'submission', 'result', 'other'] },
-  start: { type: 'string', description: '窗口起点 YYYY-MM-DD。只知道月份就给该月 1 日并设 accuracy=month；只知道年份给该年 1 月 1 日并设 accuracy=year。实在没有时间线索才留空。' },
+  start: { type: 'string', description: '窗口起点 YYYY-MM-DD。先把日期查准：官方公告写到日就直接写那天（accuracy=exact）；官方只到一段窗口就写窗口起点（accuracy=range）；只知道月份才给该月 1 日并设 accuracy=month（这是占位，月历不会把它当某一天的安排）。' },
   end: { type: 'string', description: '窗口终点 YYYY-MM-DD；单日节点可省略。' },
   confidence: { type: 'string', enum: ['official_confirmed', 'predicted', 'pending_confirmation', 'unknown'] },
-  note: { type: 'string', description: '推断依据或用户原话。粗粒度（month / year）日期必须写清凭什么这么推。' },
-  accuracy: { type: 'string', enum: ['exact', 'range', 'month', 'year', 'unknown'], description: '时间精度：exact 具体某天、range 一段窗口、month 只知道月份、year 只知道年份/学期。不填会按起止日期推断。' },
+  note: { type: 'string', description: '必须写清这个日期是怎么来的：查到了什么、出处是哪家官网或哪所学校转发的通知、哪些还是推算。' },
+  accuracy: { type: 'string', enum: ['exact', 'range', 'month', 'year', 'unknown'], description: '时间精度：exact 具体某天、range 一段窗口、month 只知道月份、year 只知道年份/学期。只有真的查不到具体日子才降级，不填会按起止日期推断。' },
   color: { type: 'string', enum: TAG_COLORS, description: '可选标签色（配色标识，不是可信度）。' },
 }
 
@@ -213,7 +214,7 @@ export function registerAddItemTool(ctx, { store, defineTool }) {
   if (!ctx.tools || typeof ctx.tools.register !== 'function' || typeof defineTool !== 'function') return false
   ctx.tools.register(defineTool({
     name: 'campus_calendar_add_item',
-    description: '在本地校园赛事日历中新增一个赛事、证书考试或关键节点。只新增单项；不会访问来源 URL。日期按精度阶梯如实记录：知道到日就写具体日期（accuracy=exact），知道一段窗口就写起止（range），只知道月份就写该月 1 日并标 accuracy=month，只知道年份/学期就标 accuracy=year，并配 confidence=predicted 在 note 里写依据。不要为了显得精确而编日期，也不要因为不够精确就把时间留空——日历只有带时间才有用。没有官方来源和核验日期时不可标记为官方已确认。',
+    description: '在本地校园赛事日历中新增一个赛事、证书考试或关键节点。只新增单项；不会访问来源 URL。调用前应已联网查过该赛事的官方公告：查到具体日子就写 accuracy=exact，查到一段窗口就写 accuracy=range 起止，官方只说到月份才用 accuracy=month（start 写该月 1 日，纯占位），只有年份/学期才用 accuracy=year。note 必须写清依据（查到什么、出处是哪家官网或哪所学校转发的通知），并尽量填 sourceUrl 与 verifiedAt。没有具体日期+来源+核验日期三者齐备时不可标 official_confirmed；按往届规律推算的写 predicted 并注明是推算。不要为了显得精确而编日期，也不要不查就把时间留空。',
     parameters: itemParameters,
     output: {
       schema: { type: 'object', additionalProperties: false, properties: {
@@ -308,7 +309,7 @@ export function createCalendarSkillProvider(root = SKILL_ROOT) {
     async get(candidate) {
       if (!candidate || candidate.name !== summary().name) return undefined
       const skill = readCalendarSkill(file, root)
-      const content = `${skill.body.trim()}\n\n---\n\n## 在赛事日历插件里使用\n\n- 本 skill 的目录是 \`${skill.dir}\`。\n- 写入工具是 \`campus_calendar_add_item\`，只需结构化字段：一次一条。先查稳定年度事项的往届节奏；有可靠月份依据就用 accuracy=month 与 confidence=predicted 写入并说明依据，只有完全无时间线索时才留空。\n- 写完后提醒用户回到「赛事日历」页点右上角刷新即可看到。\n`
+      const content = `${skill.body.trim()}\n\n---\n\n## 在赛事日历插件里使用\n\n- 本 skill 的目录是 \`${skill.dir}\`。\n- 写入工具是 \`campus_calendar_add_item\`，只需结构化字段：一次一条。**先联网查这项赛事的官方公告再写**；查到具体日子用 accuracy=exact 并在 note 写清出处，官方只说到月份才降级用 month，只有多年稳定节奏才按规律推一天并标 predicted。\n- 写完后提醒用户回到「赛事日历」页点右上角刷新即可看到。\n`
       return { ...summary(), content }
     },
   }
@@ -349,11 +350,13 @@ export function buildDraft({ kind = 'plan', text = '', today = new Date().toISOS
       '',
       '我答完以后：',
       '- 先用 campus_calendar_set_profile 把 1-4 写进档案，这是这份日历是我的的前提；',
-      '- 再挑 6-10 个真正适合我这个专业/年级/地区的赛事和证书，逐个用 campus_calendar_add_item 写入，事项的 majors / years / regions / interests 要填对，日历才能判断适不适合我；',
-      '- 每个事项给 1-3 个关键节点（报名开始 / 报名截止 / 考试或比赛日期）。',
+      '- 再挑 6-10 个真正适合我这个专业/年级/地区的赛事和证书；',
+      '- **每一项都先联网查官方公告再落库**：搜「<赛事名> 报名时间 省赛 时间安排」「<赛事名> 官网 通知」，优先看组委会官网、省考试院、高校教务处转发的正式通知（那类文件常把「4 月 10 日周六 9:00」写全）。报名开始、报名截止、比赛/考试日期往往是三个不同月份，别只查一个；',
+      '- 查到具体日子就写 accuracy=exact 并在 note 写清出处；查到一段窗口写 range 起止；官方只说到月份才用 month；只有多年稳定节奏（如「每年 6 月第三个周六」）才允许按规律推一天，标 predicted 并注明是推算。**不要用「4 月 1 日」冒充「4 月」这种占位日期**；',
+      '- 每个事项逐个用 campus_calendar_add_item 写入，majors / years / regions / interests 要填对，日历才能判断适不适合我。',
       '',
-      `${todayLine}日期原则（精度阶梯）：知道到日就写具体日期（accuracy=exact）；知道一段窗口就写起止（range）；只知道月份就写该月 1 日并标 accuracy=month；只知道年份或学期就标 accuracy=year。对有可靠历届规律的年度赛事/考试，主动给下一届月份窗口，confidence=predicted，并在 note 说明来源与规律；不要将“每年举办”直接推成具体月份，也不要编具体日。没有可靠时间线索才留 null + unknown。没有官方来源与核验日期不要标 official_confirmed。`,
-      '写完告诉我写了哪几项、各自的时间精度（到日 / 到月 / 到年 / 待确认），以及回「赛事日历」页刷新查看。',
+      `${todayLine}日期原则：先查后写，查不到才降级。日历上一条编造的日期比一条"待确认"更有害 —— 我真的会按它安排时间。没有官方来源与核验日期不要标 official_confirmed。`,
+      '写完告诉我写了哪几项、每项日期是"官方到日 / 官方窗口 / 官方只到月 / 按往年规律推测 / 待确认"，以及哪几项还没查到、需要我盯着官网。最后提醒我回「赛事日历」页刷新查看。',
     ].join('\n')
   }
   if (kind === 'semester') {
@@ -366,9 +369,10 @@ export function buildDraft({ kind = 'plan', text = '', today = new Date().toISOS
       `地区：${profile.province || '（省份）'}`,
       '',
       `${todayLine}档案里缺的信息先问我，问完整理后先用 campus_calendar_set_profile 存好。`,
-      '每条给 1-3 个关键节点（报名开始 / 报名截止 / 考试或比赛日期）。',
-      '日期原则（精度阶梯）：知道到日写具体日期（exact）；一段窗口写起止（range）；只知道月份写该月 1 日 + accuracy=month；只知道年份/学期用 accuracy=year。先查稳定年度赛事/考试的历届公告；有可靠月份规律就给下一届月份预测，标 predicted 并在 note 写依据，不能只因未公布就留空，也不能把“每年举办”直接推成具体月份或具体日。没有可靠时间线索才留 null + unknown。',
-      '没有官方来源的不要标 official_confirmed。',
+      '**每一项都先联网查官方公告再落库**，不要凭印象给日期：搜「<赛事名> 2027 报名时间 时间安排」，优先看组委会官网、省考试院、高校教务处转发的正式通知。',
+      '报名开始 / 报名截止 / 比赛或考试日期往往是三个不同月份，一个事项里都要给上。',
+      '日期原则：查到具体日子写 exact 并在 note 写清出处；一段窗口写 range；官方只说到月份才用 accuracy=month；只有多年稳定节奏才按规律推一天并标 predicted + 注明是推算。先查后写，查不到才降级 —— 不要用「4 月 1 日」冒充「4 月」。',
+      '没有官方来源与核验日期不要标 official_confirmed。',
     ].join('\n')
   }
   if (kind === 'ask') {
@@ -387,7 +391,7 @@ export function buildDraft({ kind = 'plan', text = '', today = new Date().toISOS
     '报名 / 考试时间：',
     '官方链接（有就填）：',
     '',
-    `${todayLine}时间不确定就按精度写：只知道月份用 accuracy=month（写该月 1 日），只知道年份用 accuracy=year，并标 predicted + note 说明依据；只有完全没提过时间才留空。`,
+    `${todayLine}我填完事项名之后，你先联网查这项赛事的官方公告（报名开始 / 报名截止 / 比赛或考试日期往往在不同月份），查到具体日子就按 accuracy=exact 写入并在 note 写清出处；官方只说到月份才用 accuracy=month；查不到就老实标待确认，不要编日期。`,
   ].join('\n')
 }
 
@@ -420,7 +424,69 @@ export function createHandler({ store = createStore() } = {}) {
         const text = (url.searchParams.get('text') || '').slice(0, 500)
         return json(res, 200, { skill: SKILL_NAME, prompt: buildDraft({ kind, text, state: await store.readState() }) })
       }
-      if (req.method === 'POST' && route === 'import') return json(res, 200, await store.importState(await readJson(req)))
+      // 导入会整份替换事项和档案 —— 和「合并重复」一样是破坏性操作，所以先备份。
+      // 备份失败就直接抛，不进入替换：宁可这次导入失败，也不要出现「原数据没了、备份也没有」。
+      if (req.method === 'POST' && route === 'import') {
+        const incoming = await readJson(req)
+        const backup = await store.backup('import')
+        const state = await store.importState(incoming)
+        return json(res, 200, { ...state, backup })
+      }
+      // 查重（只读）：界面上展示「这几条其实是同一个赛事」，不改数据
+      if (req.method === 'GET' && route === 'duplicates') {
+        const state = await store.readState()
+        const { duplicates, auto } = groupItems(state.items)
+        return json(res, 200, { duplicates: duplicates.map(plan => ({ ...plan, ...mergeSummary(plan, state.items) })), auto })
+      }
+      /**
+       * 合并重复记录。请求体 { keys?: string[] }：只合并指定的组；不带 keys 就合并全部。
+       * 写入前自动备份，合并结果与原文件都可以回退。
+       */
+      if (req.method === 'POST' && route === 'duplicates/merge') {
+        const body = await readJson(req)
+        return store.transact(async () => {
+          const state = await store.readState()
+          const { duplicates } = groupItems(state.items)
+          const wanted = Array.isArray(body.keys) && body.keys.length ? new Set(body.keys.map(String)) : null
+          const plans = wanted ? duplicates.filter(plan => wanted.has(plan.key)) : duplicates
+          if (!plans.length) return json(res, 200, { state, merged: [], backup: null })
+          const { dataset, merged } = buildMergedDataset(state, plans)
+          if (!merged.length) return json(res, 200, { state, merged: [], backup: null })
+          const backup = await store.backup('merge')
+          const saved = await store.writeState(dataset)
+          return json(res, 200, { state: saved, merged: merged.map(item => ({ id: item.id, title: item.title, nodeCount: item.nodes.length })), backup })
+        })
+      }
+      // 手动建组：把几条其实是同一赛事的记录并到一张卡上（不动它们的内容）
+      if (req.method === 'POST' && route === 'items/group') {
+        const body = await readJson(req)
+        const primary = typeof body.primary === 'string' ? body.primary : ''
+        const members = Array.isArray(body.members) ? body.members.map(String) : []
+        if (!primary) return json(res, 400, { error: '缺少主卡事项 id' })
+        return json(res, 200, await store.relink({ primary, members }))
+      }
+      // 改简称：月历格里显示的就是它
+      if (req.method === 'POST' && route === 'items/alias') {
+        const body = await readJson(req)
+        const id = typeof body.id === 'string' ? body.id : ''
+        if (!id) return json(res, 400, { error: '缺少事项 id' })
+        return json(res, 200, await store.setAlias(id, typeof body.alias === 'string' ? body.alias.slice(0, 12) : ''))
+      }
+      // 标重要程度：1-4，0/null 表示回到自动推断
+      if (req.method === 'POST' && route === 'items/level') {
+        const body = await readJson(req)
+        const id = typeof body.id === 'string' ? body.id : ''
+        if (!id) return json(res, 400, { error: '缺少事项 id' })
+        const level = body.level === null || body.level === undefined || body.level === 0 ? null : Number(body.level)
+        if (level !== null && ![1, 2, 3, 4].includes(level)) return json(res, 400, { error: 'level 必须是 1-4' })
+        return json(res, 200, await store.setNodeLevel(id, typeof body.nodeId === 'string' ? body.nodeId : '', level))
+      }
+      if (req.method === 'POST' && route === 'items/unlink') {
+        const body = await readJson(req)
+        const id = typeof body.id === 'string' ? body.id : ''
+        if (!id) return json(res, 400, { error: '缺少事项 id' })
+        return json(res, 200, await store.unlink(id))
+      }
       if (req.method === 'POST' && route === 'state') return json(res, 200, await store.writeState(await readJson(req)))
       if (req.method === 'POST' && route === 'items') {
         const body = await readJson(req)

@@ -67,6 +67,36 @@ export function nodeWindow(node = {}) {
 }
 
 /**
+ * 核验新鲜度。
+ * 赛事日期一年一换：去年的核验结果今年基本不能用，而「verifiedAt: 2026-11-16」这种字段
+ * 放在详情页角落里没人会去算它过期了多久。所以这里把它变成一个状态，界面才有东西可提示。
+ *   fresh    ≤ 90 天：这个日期还新鲜
+ *   cooling  91–180 天：该抽空再看一眼官方公告
+ *   stale    > 180 天：别再信这份日期，重新查
+ *   unknown  没填核验日期：根本无从判断
+ */
+export const VERIFY_FRESH_DAYS = 90
+export const VERIFY_STALE_DAYS = 180
+const DAY_MS = 86400000
+
+export function verifiedAgeDays(item = {}, today = new Date()) {
+  const raw = typeof item?.verifiedAt === 'string' ? item.verifiedAt.slice(0, 10) : ''
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null
+  const then = Date.parse(`${raw}T00:00:00Z`)
+  const now = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate())
+  if (!Number.isFinite(then)) return null
+  return Math.max(0, Math.round((now - then) / DAY_MS))
+}
+
+export function verificationState(item = {}, today = new Date()) {
+  const days = verifiedAgeDays(item, today)
+  if (days === null) return { state: 'unknown', days: null }
+  if (days <= VERIFY_FRESH_DAYS) return { state: 'fresh', days }
+  if (days <= VERIFY_STALE_DAYS) return { state: 'cooling', days }
+  return { state: 'stale', days }
+}
+
+/**
  * 图片只接受 http(s) 直链。宣传图常挂在主办方站点，所以插件不下载、不缓存，
  * 由客户端按 referrerpolicy=no-referrer 直接引用；加载失败时退回文字占位。
  */
@@ -99,12 +129,16 @@ export function validateItem(input) {
     else if (input.nodes[0]?.type !== 'other' || !input.nodes[0]?.start || input.nodes[0]?.end) errors.push('备忘必须是单日日期节点')
   } else if (input.memoLevel !== undefined) errors.push('memoLevel 仅适用于备忘')
   if (input.demo !== undefined && typeof input.demo !== 'boolean') errors.push('demo 必须为布尔值')
+  // 自定义简称：月历格里唯一会显示的文字，长度必须收紧，否则会把格子撑破
+  if (input.alias !== undefined && input.alias !== '' && (!text(input.alias, 12) || !input.alias.trim())) errors.push('alias 必须是不超过 12 字符的非空文本')
   for (const field of ['description', 'organizer', 'eligibility', 'notes']) {
     if (input[field] !== undefined && !text(input[field])) errors.push(`${field} 格式无效`)
   }
   for (const field of ['majors', 'interests', 'years', 'regions']) {
     if (input[field] !== undefined && (!Array.isArray(input[field]) || input[field].some(value => !text(value, 100)))) errors.push(`${field} 必须为字符串列表`)
   }
+  // 同一个赛事被写成多条记录是常态（标题各写各的），组员指向主卡就能在界面上合成一张卡
+  if (input.group !== undefined && (!text(input.group, 100) || !input.group.trim())) errors.push('group 必须是不超过 100 字符的事项 id')
   if (input.sourceUrl !== undefined && input.sourceUrl !== '' && !validUrl(input.sourceUrl)) errors.push('sourceUrl 必须是 http 或 https URL')
   if (input.imageUrl !== undefined && input.imageUrl !== '' && !validImageUrl(input.imageUrl)) errors.push('imageUrl 必须是 http 或 https 图片直链')
   if (input.artist !== undefined && input.artist !== '' && !text(input.artist, 120)) errors.push('artist 格式无效')
@@ -133,6 +167,8 @@ export function validateItem(input) {
     if (node.accuracy !== undefined && !PRECISION.includes(node.accuracy)) errors.push(`${prefix}.accuracy 无效`)
     // 标签色只能取枚举值：客户端会把它拼进 class 名，放任任意字符串等于引入样式注入
     if (node.color !== undefined && node.color !== '' && !TAG_COLORS.includes(node.color)) errors.push(`${prefix}.color 无效`)
+    // 重要程度：用户自己定的 1-4 档（一般/准备/重要/截止），覆盖按节点类型推断出来的默认档
+    if (node.level !== undefined && ![1, 2, 3, 4].includes(node.level)) errors.push(`${prefix}.level 必须是 1-4`)
     })
   }
   if (errors.length) return { ok: false, errors }
@@ -161,6 +197,10 @@ export function validateDataset(input, maxBytes = 2 * 1024 * 1024) {
         if (itemIds.has(item.id)) errors.push(`items[${index}]: id 重复`)
         else itemIds.add(item.id)
       }
+    })
+    // 第二遍才校验分组引用：组员指向的 id 必须真实存在，否则界面会把它当成一张空卡
+    input.items.forEach((item, index) => {
+      if (typeof item?.group === 'string' && item.group && !itemIds.has(item.group)) errors.push(`items[${index}]: group 指向不存在的事项`)
     })
   }
   for (const field of ['favorites', 'reminders']) {

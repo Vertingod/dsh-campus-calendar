@@ -128,10 +128,15 @@ test('month date index only marks the first and last day of a multi-day window',
   assert.equal([...index.values()].flat().some(({ item }) => item.id === 'unknown'), false)
 })
 
-test('month date index collapses a whole-month window to its first and last day', () => {
-  const items = [{ id: 'month', title: 'March exam', nodes: [{ id: 'n', start: '2027-03-01', end: null, accuracy: 'month' }] }]
+test('month-precision nodes stay out of the grid and surface as floating rows instead', async () => {
+  const { monthFloating } = await import('../src/domain/filter.js')
+  const items = [{ id: 'month', title: 'March exam', nodes: [{ id: 'n', type: 'exam', start: '2027-03-01', end: null, accuracy: 'month', confidence: 'predicted', note: '往年三月' }] }]
   const index = buildMonthIndex(items, new Date(2027, 2, 1))
-  assert.deepEqual([...index.keys()], ['2027-03-01', '2027-03-31'])
+  assert.deepEqual([...index.keys()], [], '只知道月份时不再编出 1 号和月末这两天')
+  const floating = monthFloating(items, new Date(2027, 2, 1))
+  assert.equal(floating.length, 1, '月份精度的事项要能被「档期未定」条接住，不能凭空消失')
+  assert.equal(floating[0].item.id, 'month')
+  assert.deepEqual(monthFloating(items, new Date(2027, 4, 1)), [], '别的月份不显示')
 })
 
 test('a date shared by two nodes of one item collapses into a single chip, preferring the deadline', async () => {
