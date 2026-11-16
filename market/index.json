@@ -27,11 +27,11 @@
       "versions": [
         {
           "version": "0.3.1",
-          "publishTimestamp": 1794832135,
+          "publishTimestamp": 1794832723,
           "source": {
             "type": "git",
             "url": "https://github.com/Vertingod/dsh-campus-calendar",
-            "commit": "bedc342b468f87922dfbb68940e38908e6b45230"
+            "commit": "3654d215e86f48f2d96d5b16f49bc2eaeaa1034e"
           },
           "engines": {
             "dsh": ">=0.2.1-rc.5 <0.3.0"
